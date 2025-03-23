@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gesture Drawing</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #cameraView { 
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #canvas {
+            position: fixed;
+            pointer-events: none;
+        }
+        .hand-box {
+            position: absolute;
+            border: 3px solid #0f0;
+            transition: all 0.1s;
+        }
+        .permission-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <video id="cameraView" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    <div class="permission-message">Разрешите доступ к камере для продолжения</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+
+    <script>
+        let video = document.getElementById('cameraView');
+        let canvas = document.getElementById('canvas');
+        let ctx = canvas.getContext('2d');
+        let handBox = null;
+        let isDrawing = false;
+        let gestureCount = 0;
+        let lastGestureTime = 0;
+        let model;
+
+        // Настройки
+        const GESTURE_INTERVAL = 1000; // 1 секунда между жестами
+        const OK_DISTANCE = 0.1; // Расстояние для жеста OK
+
+        // Инициализация камеры
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user" } 
+                });
+                video.srcObject = stream;
+                document.querySelector('.permission-message').style.display = 'none';
+                
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                };
+                
+                return new Promise(resolve => {
+                    video.onplaying = resolve;
+                });
+            } catch (err) {
+                alert('Не удалось получить доступ к камере');
+                console.error(err);
+            }
+        }
+
+        // Инициализация модели
+        async function initModel() {
+            model = await handpose.load();
+            detectHands();
+        }
+
+        // Обнаружение рук
+        async function detectHands() {
+            const predictions = await model.estimateHands(video);
+            updateHandBox(predictions);
+            checkGestures(predictions);
+            requestAnimationFrame(detectHands);
+        }
+
+        // Обновление рамки руки
+        function updateHandBox(predictions) {
+            if (!predictions.length) {
+                if (handBox) handBox.remove();
+                handBox = null;
+                return;
+            }
+
+            const box = predictions[0].boundingBox;
+            if (!handBox) {
+                handBox = document.createElement('div');
+                handBox.className = 'hand-box';
+                document.body.appendChild(handBox);
+            }
+
+            handBox.style.left = `${box.topLeft[0]}px`;
+            handBox.style.top = `${box.topLeft[1]}px`;
+            handBox.style.width = `${box.bottomRight[0] - box.topLeft[0]}px`;
+            handBox.style.height = `${box.bottomRight[1] - box.topLeft[1]}px`;
+        }
+
+        // Проверка жестов
+        function checkGestures(predictions) {
+            if (!predictions.length) return;
+
+            const landmarks = predictions[0].landmarks;
+            const fingersUp = checkFingers(landmarks);
+
+            // Проверка на двойное сжатие
+            if (fingersUp === 0) {
+                if (Date.now() - lastGestureTime < GESTURE_INTERVAL) {
+                    gestureCount++;
+                } else {
+                    gestureCount = 1;
+                }
+                lastGestureTime = Date.now();
+            }
+
+            // Активация рисования
+            if (gestureCount >= 2 && fingersUp === 1) {
+                isDrawing = true;
+                gestureCount = 0;
+            }
+
+            // Рисование
+            if (isDrawing && fingersUp === 1) {
+                const indexTip = landmarks[8];
+                draw(indexTip);
+            }
+
+            // Очистка (жест OK)
+            if (checkOKGesture(landmarks)) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                isDrawing = false;
+            }
+        }
+
+        // Проверка поднятых пальцев
+        function checkFingers(landmarks) {
+            const fingerJoints = {
+                thumb: [0, 1, 2, 3, 4],
+                index: [0, 5, 6, 7, 8],
+                middle: [0, 9, 10, 11, 12],
+                ring: [0, 13, 14, 15, 16],
+                pinky: [0, 17, 18, 19, 20]
+            };
+
+            let count = 0;
+            for (let finger in fingerJoints) {
+                if (finger !== 'thumb' && isFingerUp(landmarks, fingerJoints[finger])) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        // Проверка поднят ли палец
+        function isFingerUp(landmarks, joints) {
+            const tip = landmarks[joints[joints.length - 1]];
+            const dip = landmarks[joints[joints.length - 2]];
+            return tip[1] < dip[1];
+        }
+
+        // Проверка жеста OK
+        function checkOKGesture(landmarks) {
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const distance = Math.hypot(
+                thumbTip[0] - indexTip[0],
+                thumbTip[1] - indexTip[1]
+            );
+            return distance < OK_DISTANCE * canvas.width;
+        }
+
+        // Рисование
+        let lastPoint = null;
+        function draw(point) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 5;
+            
+            if (lastPoint) {
+                ctx.moveTo(lastPoint[0], lastPoint[1]);
+                ctx.lineTo(point[0], point[1]);
+            } else {
+                ctx.moveTo(point[0], point[1]);
+                ctx.lineTo(point[0], point[1]);
+            }
+            
+            ctx.stroke();
+            lastPoint = point;
+        }
+
+        // Инициализация приложения
+        async function init() {
+            await initCamera();
+            await initModel();
+        }
+
+        init();
+    </script>
+</body>
+</html>
