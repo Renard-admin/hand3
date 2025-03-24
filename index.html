@@ -43,7 +43,7 @@
         const mirrorBtn = document.getElementById('mirrorBtn');
 
         let currentStream;
-        let hands, cocoModel, faceDetection;
+        let hands, cocoModel;
         let isDrawing = false;
         let fistCount = 0;
         let mirrorEnabled = true;
@@ -52,13 +52,11 @@
         const foodItems = ['apple', 'banana', 'pizza', 'sandwich', 'hot dog', 'donut', 'cake'];
 
         async function setupCamera() {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const cameras = devices.filter(d => d.kind === 'videoinput');
-            const selectedCamera = cameras.find(c => c.label.includes(cameraMode)) || cameras[0];
-            
-            currentStream = await navigator.mediaDevices.getUserMedia({
-                video: { deviceId: selectedCamera.deviceId, facingMode: cameraMode }
-            });
+            const constraints = {
+                video: { facingMode: cameraMode, width: 640, height: 480 }
+            };
+
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = currentStream;
         }
 
@@ -72,19 +70,28 @@
             cocoModel = await cocoSsd.load();
 
             // Face API
-            await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
-            await faceapi.nets.ageGenderNet.loadFromUri('/models');
-            await faceapi.nets.faceExpressionNet.loadFromUri('/models');
+            await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights');
+            await faceapi.nets.ageGenderNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights');
+            await faceapi.nets.faceExpressionNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights');
         }
 
         async function processFrame() {
-            if (!video.readyState) return;
+            if (!video.readyState) return requestAnimationFrame(processFrame);
 
-            const canvas = outputCanvas.transferControlToOffscreen();
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            
-            // Обработка рук
-            await hands.send({image: video});
+            const ctx = outputCanvas.getContext('2d');
+            outputCanvas.width = video.videoWidth;
+            outputCanvas.height = video.videoHeight;
+            drawCanvas.width = outputCanvas.width;
+            drawCanvas.height = outputCanvas.height;
+
+            // Зеркальное отображение
+            if (mirrorEnabled) {
+                ctx.translate(outputCanvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+
+            // Отрисовка видео
+            ctx.drawImage(video, 0, 0, outputCanvas.width, outputCanvas.height);
 
             // Обработка лиц
             const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
@@ -94,10 +101,11 @@
             // Обработка объектов
             const objects = await cocoModel.detect(video);
 
-            // Отрисовка
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Отрисовка результатов
             drawFaces(detections, ctx);
             drawObjects(objects, ctx);
+
+            if (!mirrorEnabled) ctx.setTransform(1, 0, 0, 1, 0, 0);
             requestAnimationFrame(processFrame);
         }
 
@@ -123,21 +131,14 @@
                 const [x, y, width, height] = prediction.bbox;
                 const label = prediction.class;
                 
-                if (dangerousItems.includes(label)) {
-                    ctx.strokeStyle = 'red';
-                    ctx.fillStyle = 'red';
-                    ctx.fillText(`Опасный: ${label} (${Math.round(prediction.score * 100)}%)`, x, y - 10);
-                } else if (foodItems.includes(label)) {
-                    ctx.strokeStyle = 'green';
-                    ctx.fillStyle = 'green';
-                    ctx.fillText(`Еда: ${label} (${Math.round(prediction.score * 100)}%)`, x, y - 10);
-                } else {
-                    ctx.strokeStyle = 'yellow';
-                    ctx.fillStyle = 'yellow';
-                    ctx.fillText(`${label} (${Math.round(prediction.score * 100)}%)`, x, y - 10);
-                }
+                ctx.strokeStyle = dangerousItems.includes(label) ? 'red' 
+                    : foodItems.includes(label) ? 'green' 
+                    : 'yellow';
                 
+                ctx.lineWidth = 2;
                 ctx.strokeRect(x, y, width, height);
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.fillText(`${dangerousItems.includes(label) ? 'Опасный' : foodItems.includes(label) ? 'Еда' : ''}: ${label} (${Math.round(prediction.score * 100)}%)`, x, y - 10);
             });
         }
 
@@ -145,7 +146,7 @@
             if (!results.multiHandLandmarks.length) return;
 
             const landmarks = results.multiHandLandmarks[0];
-            const canvasCtx = outputCanvas.getContext('2d');
+            const ctx = outputCanvas.getContext('2d');
 
             // Ограничивающий прямоугольник
             let minX = 1, minY = 1, maxX = 0, maxY = 0;
@@ -156,9 +157,9 @@
                 maxY = Math.max(maxY, pt.y);
             });
             
-            canvasCtx.strokeStyle = 'lime';
-            canvasCtx.lineWidth = 3;
-            canvasCtx.strokeRect(
+            ctx.strokeStyle = 'lime';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(
                 minX * outputCanvas.width,
                 minY * outputCanvas.height,
                 (maxX - minX) * outputCanvas.width,
@@ -166,16 +167,17 @@
             );
 
             // Логика жестов
-            const isFist = checkFist(landmarks);
-            const isPointing = checkIndexPointing(landmarks);
-            const isOK = checkOK(landmarks);
+            const now = Date.now();
+            const fist = isFist(landmarks);
+            const pointing = isIndexPointing(landmarks);
+            const ok = isOkGesture(landmarks);
 
-            if (isFist) {
+            if (fist && !lastFistState && (now - lastTimeFist) > 700) {
                 fistCount++;
-                setTimeout(() => fistCount = 0, 1000);
+                lastTimeFist = now;
             }
 
-            if (fistCount >= 2 && isPointing) {
+            if (fistCount >= 2 && pointing) {
                 isDrawing = true;
                 fistCount = 0;
             }
@@ -192,25 +194,53 @@
                 drawCtx.fill();
             }
 
-            if (isOK) {
+            if (ok) {
                 drawCanvas.getContext('2d').clearRect(0, 0, drawCanvas.width, drawCanvas.height);
                 isDrawing = false;
+                fistCount = 0;
             }
+
+            lastFistState = fist;
         }
 
-        function checkFist(landmarks) {
-            // Логика определения кулака
-            return false; // Упрощено для примера
+        function isFingerExtended(landmarks, pipIdx, tipIdx) {
+            const pip = landmarks[pipIdx];
+            const tip = landmarks[tipIdx];
+            const wrist = landmarks[0];
+            const distTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+            const distPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
+            return distTip > distPip * 1.3;
         }
 
-        function checkIndexPointing(landmarks) {
-            // Логика определения указательного пальца
-            return false; // Упрощено для примера
+        function isFist(landmarks) {
+            const fingers = [
+                { pip: 6, tip: 8 },  // указательный
+                { pip: 10, tip: 12 }, // средний
+                { pip: 14, tip: 16 }, // безымянный
+                { pip: 18, tip: 20 }  // мизинец
+            ];
+            const thumbExtended = isFingerExtended(landmarks, 2, 4);
+            const otherFolded = fingers.every(f => !isFingerExtended(landmarks, f.pip, f.tip));
+            return !thumbExtended && otherFolded;
         }
 
-        function checkOK(landmarks) {
-            // Логика определения жеста OK
-            return false; // Упрощено для примера
+        function isIndexPointing(landmarks) {
+            const indexExtended = isFingerExtended(landmarks, 6, 8);
+            const others = [
+                { pip: 10, tip: 12 },
+                { pip: 14, tip: 16 },
+                { pip: 18, tip: 20 }
+            ];
+            const othersFolded = others.every(f => !isFingerExtended(landmarks, f.pip, f.tip));
+            return indexExtended && othersFolded;
+        }
+
+        function isOkGesture(landmarks) {
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const dx = thumbTip.x - indexTip.x;
+            const dy = thumbTip.y - indexTip.y;
+            return Math.hypot(dx, dy) < 0.05;
         }
 
         // Инициализация
@@ -218,7 +248,7 @@
             await setupCamera();
             await initializeModels();
             video.play();
-            processFrame();
+            requestAnimationFrame(processFrame);
         })();
 
         // Обработчики событий
@@ -229,7 +259,6 @@
         });
         mirrorBtn.addEventListener('click', () => {
             mirrorEnabled = !mirrorEnabled;
-            video.style.transform = mirrorEnabled ? 'scaleX(-1)' : 'none';
             mirrorBtn.textContent = `Зеркало: ${mirrorEnabled ? 'Вкл' : 'Выкл'}`;
         });
     </script>
