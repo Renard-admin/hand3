@@ -1,340 +1,201 @@
+html
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Улучшенное распознавание жестов</title>
-  <style>
-    /* Улучшенные стили */
-    :root {
-      --accent-color: #00ff00;
-      --draw-color: #000;
-    }
-
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: #1a1a1a;
-      font-family: Arial, sans-serif;
-      touch-action: none;
-    }
-
-    #container {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-    }
-
-    .canvas-layer {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      transform: scaleX(-1);
-    }
-
-    #video {
-      opacity: 0.9;
-    }
-
-    #status {
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      background: rgba(0,0,0,0.7);
-      color: var(--accent-color);
-      padding: 12px;
-      border-radius: 8px;
-      z-index: 1000;
-      font-size: 14px;
-      backdrop-filter: blur(2px);
-    }
-
-    .control-btn {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      padding: 10px 20px;
-      background: rgba(0,0,0,0.7);
-      color: white;
-      border: 1px solid var(--accent-color);
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.3s;
-    }
-
-    .control-btn:hover {
-      background: rgba(50,50,50,0.7);
-    }
-  </style>
+    <title>Multi-Feature Webcam App</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        #video { transform: scaleX(-1); }
+        canvas { position: absolute; }
+        #controls { margin: 20px 0; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
 </head>
 <body>
-  <div id="container">
-    <video class="canvas-layer" id="video" autoplay playsinline muted></video>
-    <canvas class="canvas-layer" id="output"></canvas>
-    <canvas class="canvas-layer" id="drawCanvas"></canvas>
-    <div id="status">Инициализация...</div>
-    <button class="control-btn" id="clearBtn">Очистить</button>
-  </div>
+    <div id="controls">
+        <button onclick="toggleFullscreen()">Fullscreen</button>
+        <button onclick="switchCamera()">Switch Camera</button>
+    </div>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="handCanvas"></canvas>
+    <canvas id="faceCanvas"></canvas>
+    <canvas id="objectCanvas"></canvas>
+    <canvas id="drawCanvas"></canvas>
 
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 
-  <script>
-    // Улучшенная логика работы
-    class GestureController {
-      constructor() {
-        this.components = {
-          video: document.getElementById('video'),
-          output: document.getElementById('output'),
-          drawCanvas: document.getElementById('drawCanvas'),
-          status: document.getElementById('status'),
-          clearBtn: document.getElementById('clearBtn')
-        };
+    <script>
+        let video, handCanvas, faceCanvas, objectCanvas, drawCanvas;
+        let hands, cocoModel, currentStream, facingMode = 'user';
+        let drawing = false, fistCount = 0, lastFistTime = 0;
+        let drawCtx, faceCtx, objectCtx;
 
-        this.state = {
-          isDrawing: false,
-          lastPoint: null,
-          gestureHistory: [],
-          handPresent: false
-        };
-
-        this.config = {
-          FIST_TIMEOUT: 500,
-          GESTURE_HISTORY_LENGTH: 10,
-          DRAW_SMOOTHING: 0.4
-        };
-
-        this.init();
-      }
-
-      async init() {
-        try {
-          await this.initCamera();
-          await this.initHandTracking();
-          this.setupEventListeners();
-          this.updateStatus('Готов к работе');
-        } catch (error) {
-          this.handleError(error);
+        async function setupCamera() {
+            video = document.getElementById('video');
+            const constraints = { video: { facingMode } };
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            video.srcObject = currentStream;
+            await new Promise(resolve => video.onloadedmetadata = resolve);
+            video.play();
+            resizeCanvases();
         }
-      }
 
-      async initCamera() {
-        this.camera = new Camera(this.components.video, {
-          onFrame: async () => {
-            await this.hands.send({ image: this.components.video });
-          },
-          width: 1280,
-          height: 720
-        });
-        await this.camera.start();
-      }
+        async function loadModels() {
+            // Mediapipe Hands
+            hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+            hands.setOptions({ maxNumHands: 2, modelComplexity: 1 });
+            hands.onResults(onHandResults);
 
-      async initHandTracking() {
-        this.hands = new Hands({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
+            // Face API
+            await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+            await faceapi.nets.ageGenderNet.loadFromUri('/models');
+            await faceapi.nets.faceExpressionNet.loadFromUri('/models');
 
-        this.hands.setOptions({
-          maxNumHands: 1,
-          modelComplexity: 1,
-          minDetectionConfidence: 0.8,
-          minTrackingConfidence: 0.8
-        });
-
-        this.hands.onResults(this.processResults.bind(this));
-      }
-
-      processResults(results) {
-        this.updateCanvasSizes();
-        this.drawCameraFrame(results);
-        
-        if (results.multiHandLandmarks) {
-          this.handleHandDetection(results);
-        } else {
-          this.handleNoHands();
+            // COCO SSD
+            cocoModel = await cocoSsd.load();
         }
-      }
 
-      updateCanvasSizes() {
-        const { video, output, drawCanvas } = this.components;
-        [output, drawCanvas].forEach(canvas => {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-        });
-      }
-
-      drawCameraFrame(results) {
-        const ctx = this.components.output.getContext('2d');
-        ctx.save();
-        ctx.clearRect(0, 0, this.components.output.width, this.components.output.height);
-        ctx.drawImage(results.image, 0, 0, this.components.output.width, this.components.output.height);
-        ctx.restore();
-      }
-
-      handleHandDetection(results) {
-        const landmarks = results.multiHandLandmarks[0];
-        this.drawHandBox(landmarks);
-        this.detectGestures(landmarks);
-        this.state.handPresent = true;
-      }
-
-      handleNoHands() {
-        if (this.state.handPresent) {
-          this.resetDrawingState();
-          this.state.handPresent = false;
+        function resizeCanvases() {
+            [handCanvas, faceCanvas, objectCanvas, drawCanvas].forEach(canvas => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+            });
+            drawCtx = drawCanvas.getContext('2d');
+            faceCtx = faceCanvas.getContext('2d');
+            objectCtx = objectCanvas.getContext('2d');
         }
-      }
 
-      drawHandBox(landmarks) {
-        const ctx = this.components.output.getContext('2d');
-        const bbox = this.calculateHandBBox(landmarks);
-        
-        ctx.strokeStyle = this.state.isDrawing ? '#ff0000' : '#00ff00';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(...bbox);
-      }
-
-      calculateHandBBox(landmarks) {
-        const xs = landmarks.map(p => p.x);
-        const ys = landmarks.map(p => p.y);
-        const x = Math.min(...xs) * this.components.output.width;
-        const y = Math.min(...ys) * this.components.output.height;
-        const width = (Math.max(...xs) - Math.min(...xs)) * this.components.output.width;
-        const height = (Math.max(...ys) - Math.min(...ys)) * this.components.output.height;
-        return [x, y, width, height];
-      }
-
-      detectGestures(landmarks) {
-        this.updateGestureHistory(landmarks);
-        
-        if (this.checkDoubleFistGesture()) {
-          this.startDrawing();
+        async function processFrame() {
+            if (!video.paused) {
+                await detectFaces();
+                await detectObjects();
+                requestAnimationFrame(processFrame);
+            }
         }
-        
-        if (this.state.isDrawing) {
-          if (this.checkOkGesture(landmarks)) {
-            this.clearCanvas();
-          } else {
-            this.drawLine(landmarks);
-          }
+
+        async function detectFaces() {
+            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                .withAgeAndGender().withFaceExpressions();
+            
+            faceCtx.clearRect(0, 0, faceCanvas.width, faceCanvas.height);
+            detections.forEach(detection => {
+                const box = detection.detection.box;
+                faceapi.draw.drawDetections(faceCtx, { box }, { lineWidth: 2, color: 'yellow' });
+                const text = `${Math.round(detection.age)}y ${detection.gender} ${Object.keys(detection.expressions).reduce((a, b) => detection.expressions[a] > detection.expressions[b] ? a : b)}`;
+                faceCtx.fillText(text, box.x, box.y - 10);
+            });
         }
-      }
 
-      updateGestureHistory(landmarks) {
-        this.state.gestureHistory.unshift({
-          timestamp: Date.now(),
-          isFist: this.isFist(landmarks),
-          isPointing: this.isIndexPointing(landmarks)
-        });
-        
-        if (this.state.gestureHistory.length > this.config.GESTURE_HISTORY_LENGTH) {
-          this.state.gestureHistory.pop();
+        async function detectObjects() {
+            const predictions = await cocoModel.detect(video);
+            objectCtx.clearRect(0, 0, objectCanvas.width, objectCanvas.height);
+            
+            predictions.forEach(prediction => {
+                const [x, y, width, height] = prediction.bbox;
+                let color = 'yellow';
+                let label = prediction.class;
+
+                if (['knife', 'gun', 'scissors'].includes(prediction.class)) {
+                    color = 'red';
+                    label = `Danger: ${prediction.class}`;
+                } else if (['apple', 'banana', 'pizza'].includes(prediction.class)) {
+                    color = 'green';
+                    label = `Food: ${prediction.class}`;
+                }
+
+                objectCtx.strokeStyle = color;
+                objectCtx.lineWidth = 2;
+                objectCtx.strokeRect(x, y, width, height);
+                objectCtx.fillStyle = color;
+                objectCtx.fillText(label, x, y > 10 ? y - 5 : y + height + 15);
+            });
         }
-      }
 
-      checkDoubleFistGesture() {
-        const validGestures = this.state.gestureHistory.filter(g => 
-          g.isFist && 
-          Date.now() - g.timestamp < this.config.FIST_TIMEOUT
-        );
-        
-        return validGestures.length >= 2 && 
-               this.isIndexPointing(this.state.gestureHistory[0].landmarks);
-      }
+        function onHandResults(results) {
+            handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+            if (!results.multiHandLandmarks) return;
 
-      startDrawing() {
-        this.state.isDrawing = true;
-        this.updateStatus('Режим рисования активен');
-      }
+            results.multiHandLandmarks.forEach((landmarks, idx) => {
+                const handedness = results.multiHandedness[idx].label;
+                const thumbTip = landmarks[4];
+                const indexTip = landmarks[8];
+                const wrist = landmarks[0];
+                const pinkyMcp = landmarks[17];
 
-      drawLine(landmarks) {
-        const ctx = this.components.drawCanvas.getContext('2d');
-        const currentPoint = this.getIndexTipPosition(landmarks);
-        
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = 4;
-        ctx.lineCap = 'round';
-        
-        ctx.beginPath();
-        if (this.state.lastPoint) {
-          ctx.moveTo(...this.state.lastPoint);
+                // Draw bounding box
+                const xCoords = landmarks.map(p => p.x * handCanvas.width);
+                const yCoords = landmarks.map(p => p.y * handCanvas.height);
+                const rect = {
+                    x: Math.min(...xCoords),
+                    y: Math.min(...yCoords),
+                    width: Math.max(...xCoords) - Math.min(...xCoords),
+                    height: Math.max(...yCoords) - Math.min(...yCoords)
+                };
+                handCtx.strokeStyle = 'green';
+                handCtx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+
+                // Check gestures
+                const distance = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+                const fistThreshold = Math.hypot(wrist.x - pinkyMcp.x, wrist.y - pinkyMcp.y) * 0.3;
+
+                if (distance < fistThreshold) {
+                    if (Date.now() - lastFistTime < 500) fistCount++;
+                    lastFistTime = Date.now();
+                }
+
+                if (fistCount >= 2 && distance > fistThreshold * 2) {
+                    drawing = true;
+                    fistCount = 0;
+                }
+
+                if (distance < fistThreshold * 0.5 && !drawing) {
+                    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+                }
+
+                if (drawing && handedness === 'Right') {
+                    if (prevX) {
+                        drawCtx.beginPath();
+                        drawCtx.moveTo(prevX, prevY);
+                        drawCtx.lineTo(indexTip.x * drawCanvas.width, indexTip.y * drawCanvas.height);
+                        drawCtx.stroke();
+                    }
+                    prevX = indexTip.x * drawCanvas.width;
+                    prevY = indexTip.y * drawCanvas.height;
+                } else {
+                    prevX = null;
+                }
+            });
         }
-        ctx.lineTo(...currentPoint);
-        ctx.stroke();
-        
-        this.state.lastPoint = currentPoint;
-      }
 
-      getIndexTipPosition(landmarks) {
-        const tip = landmarks[8];
-        return [
-          tip.x * this.components.drawCanvas.width,
-          tip.y * this.components.drawCanvas.height
-        ];
-      }
+        function toggleFullscreen() {
+            const elem = document.documentElement;
+            if (!document.fullscreenElement) {
+                elem.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
 
-      clearCanvas() {
-        this.components.drawCanvas.getContext('2d').clearRect(
-          0, 0, 
-          this.components.drawCanvas.width, 
-          this.components.drawCanvas.height
-        );
-        this.resetDrawingState();
-      }
+        async function switchCamera() {
+            facingMode = facingMode === 'user' ? 'environment' : 'user';
+            video.srcObject.getTracks().forEach(track => track.stop());
+            await setupCamera();
+        }
 
-      resetDrawingState() {
-        this.state.isDrawing = false;
-        this.state.lastPoint = null;
-        this.state.gestureHistory = [];
-        this.updateStatus('Ожидание жестов');
-      }
-
-      // Улучшенные методы определения жестов
-      isFist(landmarks) {
-        const FINGER_THRESHOLD = 0.1;
-        const tips = [4, 8, 12, 16, 20];
-        const distances = tips.map(tip => 
-          this.calculateDistance(landmarks[0], landmarks[tip]));
-        
-        return distances.every(d => d < FINGER_THRESHOLD);
-      }
-
-      isIndexPointing(landmarks) {
-        const indexTip = landmarks[8];
-        const middleTip = landmarks[12];
-        return this.calculateDistance(indexTip, middleTip) > 0.15;
-      }
-
-      checkOkGesture(landmarks) {
-        const thumbTip = landmarks[4];
-        const indexTip = landmarks[8];
-        return this.calculateDistance(thumbTip, indexTip) < 0.05;
-      }
-
-      calculateDistance(p1, p2) {
-        return Math.hypot(p1.x - p2.x, p1.y - p2.y);
-      }
-
-      setupEventListeners() {
-        this.components.clearBtn.addEventListener('click', () => this.clearCanvas());
-        window.addEventListener('resize', () => this.updateCanvasSizes());
-      }
-
-      updateStatus(text) {
-        this.components.status.textContent = text;
-      }
-
-      handleError(error) {
-        console.error(error);
-        this.updateStatus(`Ошибка: ${error.message}`);
-      }
-    }
-
-    // Инициализация приложения
-    new GestureController();
-  </script>
+        (async () => {
+            [handCanvas, faceCanvas, objectCanvas, drawCanvas] = 
+                ['handCanvas', 'faceCanvas', 'objectCanvas', 'drawCanvas'].map(id => document.getElementById(id));
+            
+            await setupCamera();
+            await loadModels();
+            hands.send({ image: video });
+            processFrame();
+        })();
+    </script>
 </body>
 </html>
