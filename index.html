@@ -1,266 +1,335 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Многофункциональное распознавание</title>
-    <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #1a1a1a; color: white; font-family: Arial, sans-serif; }
-        #container { position: relative; width: 100vw; height: 100vh; }
-        video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-        #controls { position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; gap: 10px; }
-        button { padding: 10px 20px; background: rgba(0,0,0,0.7); border: none; border-radius: 5px; color: white; cursor: pointer; }
-        button:hover { background: rgba(0,0,0,0.9); }
-        .annotation { position: absolute; background: rgba(0,0,0,0.7); padding: 4px 8px; border-radius: 3px; }
-        .danger { border: 2px solid red; }
-        .food { border: 2px solid green; }
-        .neutral { border: 2px solid yellow; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Развивайся!</title>
+  <style>
+    /* Общие стили */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #000000;
+      color: #e1d9ce;
+      font-family: 'Celestia', sans-serif;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .btn {
+      display: inline-block;
+      background-color: #e1d9ce;
+      color: #000;
+      padding: 10px 20px;
+      margin: 10px;
+      border: none;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px #9d9d9d;
+      font-size: 1em;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:hover {
+      opacity: 0.8;
+    }
+    /* Скрываем все страницы по умолчанию */
+    .page {
+      display: none;
+    }
+    /* Видео и аудио */
+    iframe, video {
+      max-width: 100%;
+    }
+    /* Адаптивность */
+    @media (max-width: 600px) {
+      .btn {
+        padding: 8px 16px;
+        margin: 5px;
+        font-size: 0.9em;
+      }
+    }
+    /* Таймер Pomodoro */
+    .timer {
+      font-size: 2em;
+      text-align: center;
+      margin: 20px 0;
+    }
+  </style>
 </head>
 <body>
-    <div id="container">
-        <video id="video" autoplay playsinline muted></video>
-        <canvas id="output"></canvas>
-        <canvas id="drawLayer"></canvas>
-        <div id="controls">
-            <button id="fullscreenBtn">Fullscreen</button>
-            <button id="flipCameraBtn">Переключить камеру</button>
-            <button id="mirrorBtn">Зеркало: Вкл</button>
-        </div>
+  <div class="container">
+
+    <!-- Главная страница -->
+    <div id="main" class="page" style="display: block;">
+      <h1>Развивайся!</h1>
+      <p>Выберите раздел:</p>
+      <div style="text-align: center;">
+        <button class="btn" onclick="showPage('books')">Книги</button>
+        <button class="btn" onclick="showPage('sugar')">Сахар</button>
+        <button class="btn" onclick="showPage('skills')">Навыки</button>
+        <button class="btn" onclick="showPage('whyLive')">Зачем жить</button>
+        <button class="btn" onclick="showPage('pomodoro')">Методика помидора</button>
+        <button class="btn" onclick="showPage('films')">Фильмы</button>
+        <button class="btn" onclick="showPage('lessons')">Уроки</button>
+        <button class="btn" onclick="showPage('antidruch')">Антидроч</button>
+        <button class="btn" onclick="showPage('lofi')">Lofi</button>
+        <button class="btn" onclick="showPage('telegram')">Telegram</button>
+        <button class="btn" onclick="showPage('career')">Профориентация</button>
+        <button class="btn" onclick="showPage('github')">Три полоски (GitHub)</button>
+      </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+    <!-- 1. Книги -->
+    <div id="books" class="page">
+      <h2>Книги</h2>
+      <p>Выберите книгу:</p>
+      <div style="text-align: center;">
+        <!-- Пример кнопок. Замените href на реальные PDF-ссылки -->
+        <button class="btn" onclick="window.open('books/book1.pdf','_blank')">Книга 1</button>
+        <button class="btn" onclick="window.open('books/book2.pdf','_blank')">Книга 2</button>
+        <button class="btn" onclick="window.open('books/book3.pdf','_blank')">Книга 3</button>
+      </div>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
 
-    <script>
-        const video = document.getElementById('video');
-        const outputCanvas = document.getElementById('output');
-        const drawCanvas = document.getElementById('drawLayer');
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
-        const flipCameraBtn = document.getElementById('flipCameraBtn');
-        const mirrorBtn = document.getElementById('mirrorBtn');
+    <!-- 2. Сахар -->
+    <div id="sugar" class="page">
+      <h2>Вред сахара</h2>
+      <p>Здесь вы узнаете о вреде сахара для организма.</p>
+      <ul>
+        <li><a class="btn" href="https://www.youtube.com/watch?v=example1" target="_blank">Видео 1</a></li>
+        <li><a class="btn" href="https://www.youtube.com/watch?v=example2" target="_blank">Видео 2</a></li>
+        <li><a class="btn" href="https://www.youtube.com/watch?v=example3" target="_blank">Видео 3</a></li>
+      </ul>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
 
-        let currentStream;
-        let hands, cocoModel;
-        let isDrawing = false;
-        let fistCount = 0;
-        let mirrorEnabled = true;
-        let cameraMode = 'user';
-        const dangerousItems = ['knife', 'scissors', 'gun'];
-        const foodItems = ['apple', 'banana', 'pizza', 'sandwich', 'hot dog', 'donut', 'cake'];
+    <!-- 3. Навыки -->
+    <div id="skills" class="page">
+      <h2>Навыки</h2>
+      <p>Выберите навык для развития:</p>
+      <div style="text-align: center;">
+        <!-- Кнопки для навыков. При нажатии вызывается функция showSkillDetail -->
+        <button class="btn" onclick="showSkillDetail('Программирование', 'Изучите основы, пройдите курс на YouTube', 'https://www.youtube.com/watch?v=progExample')">Программирование</button>
+        <button class="btn" onclick="showSkillDetail('Дизайн', 'Изучите дизайн, пройдите уроки по графике', 'https://www.youtube.com/watch?v=designExample')">Дизайн</button>
+        <button class="btn" onclick="showSkillDetail('Маркетинг', 'Изучите маркетинг и PR', 'https://www.youtube.com/watch?v=marketingExample')">Маркетинг</button>
+      </div>
+      <!-- Блок с детальным описанием навыка -->
+      <div id="skillDetail" style="margin-top:20px;"></div>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
 
-        async function setupCamera() {
-            const constraints = {
-                video: { facingMode: cameraMode, width: 640, height: 480 }
-            };
+    <!-- 4. Зачем жить -->
+    <div id="whyLive" class="page">
+      <h2>Зачем жить</h2>
+      <p>Здесь представлены тексты и видео о смысле жизни.</p>
+      <p>Найди вдохновение в этих роликах:</p>
+      <div style="text-align: center;">
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/exampleVideo1" frameborder="0" allowfullscreen></iframe>
+      </div>
+      <p>Также прочитайте мотивационные статьи.</p>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
 
-            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = currentStream;
+    <!-- 5. Методика помидора -->
+    <div id="pomodoro" class="page">
+      <h2>Методика Помидора</h2>
+      <p>Описание техники Pomodoro и встроенный звуковой таймер.</p>
+      <div class="timer" id="timerDisplay">25:00</div>
+      <div style="text-align: center;">
+        <button class="btn" onclick="startTimer()">Старт</button>
+        <button class="btn" onclick="resetTimer()">Сброс</button>
+      </div>
+      <!-- Аудио для сигнала (файл beep.mp3 должен быть добавлен в проект) -->
+      <audio id="beepSound">
+        <source src="beep.mp3" type="audio/mpeg">
+      </audio>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
+
+    <!-- 6. Фильмы -->
+    <div id="films" class="page">
+      <h2>Фильмы</h2>
+      <p>Список фильмов с описанием и идеями для развития:</p>
+      <ul>
+        <li>
+          <strong>Фильм 1</strong><br>
+          Основная идея: вдохновение и преодоление.<br>
+          Чему может научить: настойчивости и креативности.
+        </li>
+        <li>
+          <strong>Фильм 2</strong><br>
+          Основная идея: дружба и саморазвитие.<br>
+          Чему может научить: командной работе и эмпатии.
+        </li>
+        <li>
+          <strong>Фильм 3</strong><br>
+          Основная идея: поиск смысла жизни.<br>
+          Чему может научить: философскому осмыслению и творческому подходу.
+        </li>
+      </ul>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
+
+    <!-- 7. Уроки -->
+    <div id="lessons" class="page">
+      <h2>Уроки</h2>
+      <p>Выберите предмет для изучения:</p>
+      <div style="text-align: center;">
+        <button class="btn" onclick="window.open('https://www.youtube.com/results?search_query=английский+урок','_blank')">Английский</button>
+        <button class="btn" onclick="window.open('https://www.duolingo.com/','_blank')">Математика</button>
+        <button class="btn" onclick="window.open('https://www.youtube.com/results?search_query=информатика+уроки','_blank')">Информатика</button>
+      </div>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
+
+    <!-- 8. Антидроч -->
+    <div id="antidruch" class="page">
+      <h2>Антидроч</h2>
+      <p>Как изменится жизнь без мастурбации (100 пунктов):</p>
+      <ol id="antidruchList">
+        <!-- Список будет заполнен с помощью JavaScript -->
+      </ol>
+      <p>Видео с объяснениями:</p>
+      <div style="text-align: center;">
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/exampleVideo2" frameborder="0" allowfullscreen></iframe>
+      </div>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
+
+    <!-- 9. Lofi -->
+    <div id="lofi" class="page">
+      <h2>Lofi Radio</h2>
+      <p>Перенаправление на официальный Lofi Radio.</p>
+      <div style="text-align: center;">
+        <button class="btn" onclick="window.location.href='https://lofi.radio/'">Перейти</button>
+      </div>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
+
+    <!-- 10. Telegram -->
+    <div id="telegram" class="page">
+      <h2>Telegram</h2>
+      <p>Перейдите в Telegram-чат проекта.</p>
+      <div style="text-align: center;">
+        <button class="btn" onclick="window.location.href='https://t.me/your_project_chat'">Перейти</button>
+      </div>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
+
+    <!-- 11. Профориентация -->
+    <div id="career" class="page">
+      <h2>Профориентация</h2>
+      <p>Выберите сайт для профориентации:</p>
+      <div style="text-align: center;">
+        <button class="btn" onclick="window.open('https://www.example-career1.com','_blank')">Сайт 1</button>
+        <button class="btn" onclick="window.open('https://www.example-career2.com','_blank')">Сайт 2</button>
+        <button class="btn" onclick="window.open('https://www.example-career3.com','_blank')">Сайт 3</button>
+      </div>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
+
+    <!-- 12. GitHub -->
+    <div id="github" class="page">
+      <h2>GitHub</h2>
+      <p>Перейдите на страницу автора проекта:</p>
+      <div style="text-align: center;">
+        <button class="btn" onclick="window.location.href='https://github.com/yourusername'">GitHub</button>
+      </div>
+      <div style="text-align: center; margin-top:20px;">
+        <button class="btn" onclick="showPage('main')">Назад</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Функция для переключения страниц
+    function showPage(pageId) {
+      const pages = document.querySelectorAll('.page');
+      pages.forEach(page => page.style.display = 'none');
+      document.getElementById(pageId).style.display = 'block';
+      // Сброс детального описания навыка, если оно отображалось
+      if(pageId !== 'skills') {
+        document.getElementById('skillDetail').innerHTML = "";
+      }
+    }
+
+    // Функция для отображения деталей навыка
+    function showSkillDetail(title, description, videoUrl) {
+      const container = document.getElementById('skillDetail');
+      container.innerHTML = `<h3>${title}</h3>
+                             <p>${description}</p>
+                             <p><a class="btn" href="${videoUrl}" target="_blank">Смотреть видео</a></p>`;
+    }
+
+    // Таймер Pomodoro
+    let timerInterval;
+    let totalSeconds = 25 * 60; // 25 минут по умолчанию
+
+    function updateTimerDisplay() {
+      let minutes = Math.floor(totalSeconds / 60);
+      let seconds = totalSeconds % 60;
+      document.getElementById('timerDisplay').innerText =
+        `${minutes < 10 ? '0' + minutes : minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timerInterval = setInterval(function() {
+        if(totalSeconds > 0) {
+          totalSeconds--;
+          updateTimerDisplay();
+        } else {
+          clearInterval(timerInterval);
+          // Воспроизведение звукового сигнала
+          document.getElementById('beepSound').play();
         }
+      }, 1000);
+    }
 
-        async function initializeModels() {
-            // Mediapipe Hands
-            hands = new Hands({locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-            hands.setOptions({maxNumHands: 1, modelComplexity: 1});
-            hands.onResults(onHandResults);
+    function resetTimer() {
+      clearInterval(timerInterval);
+      totalSeconds = 25 * 60;
+      updateTimerDisplay();
+    }
 
-            // COCO-SSD
-            cocoModel = await cocoSsd.load();
-
-            // Face API
-            await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights');
-            await faceapi.nets.ageGenderNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights');
-            await faceapi.nets.faceExpressionNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights');
-        }
-
-        async function processFrame() {
-            if (!video.readyState) return requestAnimationFrame(processFrame);
-
-            const ctx = outputCanvas.getContext('2d');
-            outputCanvas.width = video.videoWidth;
-            outputCanvas.height = video.videoHeight;
-            drawCanvas.width = outputCanvas.width;
-            drawCanvas.height = outputCanvas.height;
-
-            // Зеркальное отображение
-            if (mirrorEnabled) {
-                ctx.translate(outputCanvas.width, 0);
-                ctx.scale(-1, 1);
-            }
-
-            // Отрисовка видео
-            ctx.drawImage(video, 0, 0, outputCanvas.width, outputCanvas.height);
-
-            // Обработка лиц
-            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-                .withAgeAndGender()
-                .withFaceExpressions();
-
-            // Обработка объектов
-            const objects = await cocoModel.detect(video);
-
-            // Отрисовка результатов
-            drawFaces(detections, ctx);
-            drawObjects(objects, ctx);
-
-            if (!mirrorEnabled) ctx.setTransform(1, 0, 0, 1, 0, 0);
-            requestAnimationFrame(processFrame);
-        }
-
-        function drawFaces(detections, ctx) {
-            detections.forEach(detection => {
-                const box = detection.detection.box;
-                const age = Math.round(detection.age);
-                const gender = detection.gender;
-                const expression = detection.expressions.asSortedArray()[0].expression;
-
-                ctx.strokeStyle = 'yellow';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-                ctx.fillStyle = 'yellow';
-                ctx.fillText(`Возраст: ${age}, Пол: ${gender}, Эмоция: ${expression}`, 
-                            box.x, box.y - 10);
-            });
-        }
-
-        function drawObjects(objects, ctx) {
-            objects.forEach(prediction => {
-                const [x, y, width, height] = prediction.bbox;
-                const label = prediction.class;
-                
-                ctx.strokeStyle = dangerousItems.includes(label) ? 'red' 
-                    : foodItems.includes(label) ? 'green' 
-                    : 'yellow';
-                
-                ctx.lineWidth = 2;
-                ctx.strokeRect(x, y, width, height);
-                ctx.fillStyle = ctx.strokeStyle;
-                ctx.fillText(`${dangerousItems.includes(label) ? 'Опасный' : foodItems.includes(label) ? 'Еда' : ''}: ${label} (${Math.round(prediction.score * 100)}%)`, x, y - 10);
-            });
-        }
-
-        function onHandResults(results) {
-            if (!results.multiHandLandmarks.length) return;
-
-            const landmarks = results.multiHandLandmarks[0];
-            const ctx = outputCanvas.getContext('2d');
-
-            // Ограничивающий прямоугольник
-            let minX = 1, minY = 1, maxX = 0, maxY = 0;
-            landmarks.forEach(pt => {
-                minX = Math.min(minX, pt.x);
-                minY = Math.min(minY, pt.y);
-                maxX = Math.max(maxX, pt.x);
-                maxY = Math.max(maxY, pt.y);
-            });
-            
-            ctx.strokeStyle = 'lime';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(
-                minX * outputCanvas.width,
-                minY * outputCanvas.height,
-                (maxX - minX) * outputCanvas.width,
-                (maxY - minY) * outputCanvas.height
-            );
-
-            // Логика жестов
-            const now = Date.now();
-            const fist = isFist(landmarks);
-            const pointing = isIndexPointing(landmarks);
-            const ok = isOkGesture(landmarks);
-
-            if (fist && !lastFistState && (now - lastTimeFist) > 700) {
-                fistCount++;
-                lastTimeFist = now;
-            }
-
-            if (fistCount >= 2 && pointing) {
-                isDrawing = true;
-                fistCount = 0;
-            }
-
-            if (isDrawing) {
-                const indexTip = landmarks[8];
-                const x = indexTip.x * drawCanvas.width;
-                const y = indexTip.y * drawCanvas.height;
-                
-                const drawCtx = drawCanvas.getContext('2d');
-                drawCtx.fillStyle = 'black';
-                drawCtx.beginPath();
-                drawCtx.arc(x, y, 5, 0, Math.PI * 2);
-                drawCtx.fill();
-            }
-
-            if (ok) {
-                drawCanvas.getContext('2d').clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-                isDrawing = false;
-                fistCount = 0;
-            }
-
-            lastFistState = fist;
-        }
-
-        function isFingerExtended(landmarks, pipIdx, tipIdx) {
-            const pip = landmarks[pipIdx];
-            const tip = landmarks[tipIdx];
-            const wrist = landmarks[0];
-            const distTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
-            const distPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
-            return distTip > distPip * 1.3;
-        }
-
-        function isFist(landmarks) {
-            const fingers = [
-                { pip: 6, tip: 8 },  // указательный
-                { pip: 10, tip: 12 }, // средний
-                { pip: 14, tip: 16 }, // безымянный
-                { pip: 18, tip: 20 }  // мизинец
-            ];
-            const thumbExtended = isFingerExtended(landmarks, 2, 4);
-            const otherFolded = fingers.every(f => !isFingerExtended(landmarks, f.pip, f.tip));
-            return !thumbExtended && otherFolded;
-        }
-
-        function isIndexPointing(landmarks) {
-            const indexExtended = isFingerExtended(landmarks, 6, 8);
-            const others = [
-                { pip: 10, tip: 12 },
-                { pip: 14, tip: 16 },
-                { pip: 18, tip: 20 }
-            ];
-            const othersFolded = others.every(f => !isFingerExtended(landmarks, f.pip, f.tip));
-            return indexExtended && othersFolded;
-        }
-
-        function isOkGesture(landmarks) {
-            const thumbTip = landmarks[4];
-            const indexTip = landmarks[8];
-            const dx = thumbTip.x - indexTip.x;
-            const dy = thumbTip.y - indexTip.y;
-            return Math.hypot(dx, dy) < 0.05;
-        }
-
-        // Инициализация
-        (async () => {
-            await setupCamera();
-            await initializeModels();
-            video.play();
-            requestAnimationFrame(processFrame);
-        })();
-
-        // Обработчики событий
-        fullscreenBtn.addEventListener('click', () => document.getElementById('container').requestFullscreen());
-        flipCameraBtn.addEventListener('click', async () => {
-            cameraMode = cameraMode === 'user' ? 'environment' : 'user';
-            await setupCamera();
-        });
-        mirrorBtn.addEventListener('click', () => {
-            mirrorEnabled = !mirrorEnabled;
-            mirrorBtn.textContent = `Зеркало: ${mirrorEnabled ? 'Вкл' : 'Выкл'}`;
-        });
-    </script>
+    // Заполнение списка для Антидроч (100 пунктов)
+    window.addEventListener('DOMContentLoaded', () => {
+      const list = document.getElementById('antidruchList');
+      for (let i = 1; i <= 100; i++) {
+        const li = document.createElement('li');
+        li.textContent = `Пункт ${i}: Преимущества отказа от мастурбации.`;
+        list.appendChild(li);
+      }
+    });
+  </script>
 </body>
-</html>
+            </html>
